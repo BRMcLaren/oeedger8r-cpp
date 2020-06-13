@@ -10,3 +10,7 @@ pipelineConfig:
             steps:
               - name: helm-build
                 command: echo "hello"
+          - name: release2
+            steps:
+              - name: helm-build
+                command: make
