@@ -49,15 +49,17 @@ class HEmitter
         file_.close();
     }
 
-    void emit_u_h(const std::string& dir_with_sep = "")
+    void emit_u_h(
+        const std::string& dir_with_sep = "",
+        const std::string& prefix = "")
     {
         gen_t_h_ = false;
         file_.open(dir_with_sep + edl_->name_ + "_u.h");
-        emit_h();
+        emit_h(prefix);
         file_.close();
     }
 
-    void emit_h()
+    void emit_h(const std::string& prefix = "")
     {
         std::string guard =
             "EDGER8R_" + upper(edl_->name_) + (gen_t_h_ ? "_T" : "_U") + "_H";
@@ -73,16 +75,8 @@ class HEmitter
         if (!gen_t_h_)
             out() << create_prototype(edl_->name_) + ";"
                   << "";
-        out() << "/**** Trusted function IDs ****/";
-        trusted_function_ids();
-        out() << "/**** ECALL marshalling structs. ****/";
-        ecall_marshalling_structs();
         out() << "/**** ECALL prototypes. ****/";
-        trusted_prototypes();
-        out() << "/**** Untrusted function IDs. ****/";
-        untrusted_function_ids();
-        out() << "/**** OCALL marshalling structs. ****/";
-        ocall_marshalling_structs();
+        trusted_prototypes(prefix);
         out() << "/**** OCALL prototypes. ****/";
         untrusted_prototypes();
         out() << "OE_EXTERNC_END"
@@ -90,70 +84,11 @@ class HEmitter
         footer(out(), guard);
     }
 
-    void trusted_function_ids()
+    void trusted_prototypes(const std::string& prefix = "")
     {
-        out() << "enum"
-              << "{";
-        int idx = 0;
-        std::string pfx = "    " + edl_->name_ + "_fcn_id_";
+        // Prefix is generated, if specified, only in _u.h.
         for (Function* f : edl_->trusted_funcs_)
-            out() << pfx + f->name_ + " = " + to_str(idx++) + ",";
-        out() << pfx + "trusted_call_id_max = OE_ENUM_MAX"
-              << "};"
-              << "";
-    }
-
-    void untrusted_function_ids()
-    {
-        out() << "enum"
-              << "{";
-        int idx = 0;
-        std::string pfx = "    " + edl_->name_ + "_fcn_id_";
-        for (Function* f : edl_->untrusted_funcs_)
-            out() << pfx + f->name_ + " = " + to_str(idx++) + ",";
-        out() << pfx + "untrusted_call_max = OE_ENUM_MAX"
-              << "};"
-              << "";
-    }
-
-    void ecall_marshalling_structs()
-    {
-        for (Function* f : edl_->trusted_funcs_)
-            marshalling_struct(f, false);
-    }
-
-    void ocall_marshalling_structs()
-    {
-        for (Function* f : edl_->untrusted_funcs_)
-            marshalling_struct(f, true);
-    }
-
-    void marshalling_struct(Function* f, bool ocall = false)
-    {
-        (void)ocall;
-        out() << "typedef struct _" + f->name_ + "_args_t"
-              << "{"
-              << "    oe_result_t _result;";
-        indent_ = "    ";
-        if (f->rtype_->tag_ != Void)
-            out() << atype_str(f->rtype_) + " _retval;";
-        for (Decl* p : f->params_)
-        {
-            out() << mdecl_str(p->name_, p->type_, p->dims_, p->attrs_) + ";";
-            if (p->attrs_ && (p->attrs_->string_ || p->attrs_->wstring_))
-                out() << "size_t " + p->name_ + "_len;";
-        }
-        if (f->errno_)
-            out() << "int _ocall_errno;";
-        indent_ = "";
-        out() << "} " + f->name_ + "_args_t;"
-              << "";
-    }
-
-    void trusted_prototypes()
-    {
-        for (Function* f : edl_->trusted_funcs_)
-            out() << prototype(f, true, gen_t_h_) + ";"
+            out() << prototype(f, true, gen_t_h_, prefix) + ";"
                   << "";
         if (edl_->trusted_funcs_.empty())
             out() << "";

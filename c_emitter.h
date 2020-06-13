@@ -56,13 +56,21 @@ class CEmitter
               << ""
               << "OE_EXTERNC_BEGIN"
               << ""
-              << "/**** ECALL functions. ****/"
+              << "/**** Trusted function IDs ****/";
+        trusted_function_ids();
+        out() << "/**** ECALL marshalling structs. ****/";
+        ecall_marshalling_structs();
+        out() << "/**** ECALL functions. ****/"
               << "";
         for (Function* f : edl_->trusted_funcs_)
             emit_forwarder(f);
         out() << "/**** ECALL function table. ****/"
               << "";
         ecalls_table();
+        out() << "/**** Untrusted function IDs. ****/";
+        untrusted_function_ids();
+        out() << "/**** OCALL marshalling structs. ****/";
+        ocall_marshalling_structs();
         out() << "/**** OCALL function wrappers. ****/"
               << "";
         for (Function* f : edl_->untrusted_funcs_)
@@ -73,7 +81,9 @@ class CEmitter
         file_.close();
     }
 
-    void emit_u_c(const std::string& dir_with_sep = "")
+    void emit_u_c(
+        const std::string& dir_with_sep = "",
+        const std::string& prefix = "")
     {
         gen_t_c_ = false;
         file_.open(dir_with_sep + edl_->name_ + "_u.c");
@@ -84,10 +94,18 @@ class CEmitter
               << ""
               << "OE_EXTERNC_BEGIN"
               << ""
-              << "/**** ECALL function wrappers. ****/"
+              << "/**** Trusted function IDs ****/";
+        trusted_function_ids();
+        out() << "/**** ECALL marshalling structs. ****/";
+        ecall_marshalling_structs();
+        out() << "/**** ECALL function wrappers. ****/"
               << "";
         for (Function* f : edl_->trusted_funcs_)
-            emit_wrapper(f);
+            emit_wrapper(f, prefix);
+        out() << "/**** Untrusted function IDs. ****/";
+        untrusted_function_ids();
+        out() << "/**** OCALL marshalling structs. ****/";
+        ocall_marshalling_structs();
         out() << "/**** OCALL functions. ****/"
               << "";
         for (Function* f : edl_->untrusted_funcs_)
@@ -112,6 +130,65 @@ class CEmitter
               << ""
               << "OE_EXTERNC_END";
         file_.close();
+    }
+
+    void trusted_function_ids()
+    {
+        out() << "enum"
+              << "{";
+        int idx = 0;
+        std::string pfx = "    " + edl_->name_ + "_fcn_id_";
+        for (Function* f : edl_->trusted_funcs_)
+            out() << pfx + f->name_ + " = " + to_str(idx++) + ",";
+        out() << pfx + "trusted_call_id_max = OE_ENUM_MAX"
+              << "};"
+              << "";
+    }
+
+    void untrusted_function_ids()
+    {
+        out() << "enum"
+              << "{";
+        int idx = 0;
+        std::string pfx = "    " + edl_->name_ + "_fcn_id_";
+        for (Function* f : edl_->untrusted_funcs_)
+            out() << pfx + f->name_ + " = " + to_str(idx++) + ",";
+        out() << pfx + "untrusted_call_max = OE_ENUM_MAX"
+              << "};"
+              << "";
+    }
+    void ecall_marshalling_structs()
+    {
+        for (Function* f : edl_->trusted_funcs_)
+            marshalling_struct(f, false);
+    }
+
+    void ocall_marshalling_structs()
+    {
+        for (Function* f : edl_->untrusted_funcs_)
+            marshalling_struct(f, true);
+    }
+
+    void marshalling_struct(Function* f, bool ocall = false)
+    {
+        (void)ocall;
+        out() << "typedef struct _" + f->name_ + "_args_t"
+              << "{"
+              << "    oe_result_t _result;";
+        indent_ = "    ";
+        if (f->rtype_->tag_ != Void)
+            out() << atype_str(f->rtype_) + " _retval;";
+        for (Decl* p : f->params_)
+        {
+            out() << mdecl_str(p->name_, p->type_, p->dims_, p->attrs_) + ";";
+            if (p->attrs_ && (p->attrs_->string_ || p->attrs_->wstring_))
+                out() << "size_t " + p->name_ + "_len;";
+        }
+        if (f->errno_)
+            out() << "int _ocall_errno;";
+        indent_ = "";
+        out() << "} " + f->name_ + "_args_t;"
+              << "";
     }
 
     void ecalls_table()
@@ -144,9 +221,9 @@ class CEmitter
         FEmitter(edl_, file_).emit(f, gen_t_c_);
     }
 
-    void emit_wrapper(Function* f)
+    void emit_wrapper(Function* f, const std::string& prefix = "")
     {
-        WEmitter(edl_, file_).emit(f, !gen_t_c_);
+        WEmitter(edl_, file_).emit(f, !gen_t_c_, prefix);
     }
 };
 

@@ -3,9 +3,17 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <map>
 
 #include "parser.h"
 #include "utils.h"
+
+// Stack of edl files being parsed.
+std::vector<std::string> Parser::stack_;
+
+// Cache for edl files that have already been parsed.
+// Reimporting an edl would just return the preparsed edl.
+std::map<std::string, Edl*> Parser::cache_;
 
 static bool _is_file(const std::string& path)
 {
@@ -17,8 +25,6 @@ static bool _is_file(const std::string& path)
     }
     return false;
 }
-
-std::vector<std::string> Parser::stack_;
 
 Parser::Parser(
     const std::string& filename,
@@ -42,15 +48,16 @@ Parser::Parser(
     {
         for (auto&& sp : searchpaths_)
         {
-            f = sp + path_sep() + filename_;
+            f = fix_path_separators(sp + path_sep() + filename_);
             if (_is_file(f))
                 break;
         }
     }
     if (!_is_file(f))
     {
-        printf(
-            "error: File not found within search paths: %s\n",
+        fprintf(
+            stderr,
+            "error: file not found within search paths: %s\n",
             filename_.c_str());
         exit(1);
     }
@@ -71,6 +78,9 @@ Parser::Parser(
 
     t_ = lex_->next();
     t1_ = lex_->next();
+
+    // Remember full path to file.
+    filename_ = f;
 }
 
 Parser::~Parser()
@@ -97,19 +107,29 @@ Token Parser::next()
     return t;
 }
 
-bool Parser::print_loc(const char* msg_kind)
+bool Parser::print_loc(const std::string& msg_kind)
 {
-    printf("%s: %s:%d:%d ", msg_kind, filename_.c_str(), line_, col_);
+    if (msg_kind == "error")
+        fprintf(
+            stderr,
+            "%s: %s:%d:%d ",
+            msg_kind.c_str(),
+            filename_.c_str(),
+            line_,
+            col_);
+    else
+        printf(
+            "%s: %s:%d:%d ", msg_kind.c_str(), filename_.c_str(), line_, col_);
     return true;
 }
 
-#define ERROR(fmt, ...)             \
-    do                              \
-    {                               \
-        print_loc("error");         \
-        printf(fmt, ##__VA_ARGS__); \
-        printf("\n");               \
-        exit(1);                    \
+#define ERROR(fmt, ...)                      \
+    do                                       \
+    {                                        \
+        print_loc("error");                  \
+        fprintf(stderr, fmt, ##__VA_ARGS__); \
+        fprintf(stderr, "\n");               \
+        exit(1);                             \
     } while (0)
 
 void Parser::expect(const char* str)
@@ -126,14 +146,20 @@ void Parser::expect(const char* str)
 
 Edl* Parser::parse()
 {
+    // Detect recursive imports.
     if (in(filename_, stack_))
     {
-        printf("recursive import detected\n");
+        fprintf(stderr, "error: recursive import detected\n");
         for (auto itr = stack_.rbegin(); itr != stack_.rend(); ++itr)
-            printf("%s\n", itr->c_str());
+            fprintf(stderr, "%s\n", itr->c_str());
         exit(1);
     }
 
+    // If the edl has already been parsed, return the cached result.
+    if (cache_.count(filename_))
+        return cache_[filename_];
+
+    printf("Processing %s.\n", filename_.c_str());
     stack_.push_back(filename_);
     expect("enclave");
     expect("{");
@@ -141,6 +167,9 @@ Edl* Parser::parse()
     edl->name_ = basename_;
     expect("}");
     stack_.pop_back();
+
+    // Update cache.
+    cache_[filename_] = edl;
     return edl;
 }
 
@@ -182,7 +211,7 @@ void Parser::parse_include()
     if (!t.starts_with("\""))
         ERROR("expecting header filename");
 
-    includes_.push_back(t);
+    append_include(t);
 }
 
 Edl* Parser::parse_import_file()
@@ -199,25 +228,80 @@ Edl* Parser::parse_import_file()
 void Parser::parse_import()
 {
     Edl* edl = parse_import_file();
-    append(types_, edl->types_);
-    append(includes_, edl->includes_);
-    append(imported_trusted_funcs_, edl->trusted_funcs_);
-    append(imported_untrusted_funcs_, edl->untrusted_funcs_);
-    delete edl;
+    for (UserType* type : edl->types_)
+        append_type(type);
+
+    for (const std::string& inc : edl->includes_)
+        append_include(inc);
+
+    for (Function* f : edl->trusted_funcs_)
+        append_function(imported_trusted_funcs_, f);
+    for (Function* f : edl->untrusted_funcs_)
+        append_function(imported_untrusted_funcs_, f);
+}
+
+template <typename T>
+static T* lookup(const std::vector<T*>& vec, const std::string& name)
+{
+    for (T* item : vec)
+        if (item->name_ == name)
+            return item;
+    return nullptr;
+}
+
+void Parser::append_include(const std::string& inc)
+{
+    if (std::find(includes_.begin(), includes_.end(), inc) == includes_.end())
+        includes_.push_back(inc);
+}
+
+void Parser::append_type(UserType* type)
+{
+    std::string name = type->name_;
+    UserType* t = lookup(types_, name);
+    if (t && t != type)
+        ERROR("Duplicate type definition detected for %s", name.c_str());
+    if (!t)
+        types_.push_back(type);
+}
+
+void Parser::append_function(std::vector<Function*>& funcs, Function* f)
+{
+    std::string name = f->name_;
+    Function* trusted_f = lookup(trusted_funcs_, name);
+    Function* untrusted_f = lookup(untrusted_funcs_, name);
+    Function* imported_trusted_f = lookup(imported_trusted_funcs_, name);
+    Function* imported_untrusted_f = lookup(imported_untrusted_funcs_, name);
+
+    bool duplicate = (trusted_f && f != trusted_f) ||
+                     (untrusted_f && f != untrusted_f) ||
+                     (imported_trusted_f && imported_trusted_f != f) ||
+                     (imported_untrusted_f && imported_untrusted_f != f);
+    if (duplicate)
+        ERROR("Duplicate function definition detected for %s", name.c_str());
+
+    // If the function does not already exist, append.
+    if (!trusted_f && !untrusted_f && !imported_trusted_f &&
+        !imported_untrusted_f)
+        funcs.push_back(f);
 }
 
 void Parser::parse_from_import()
 {
     Edl* edl = parse_import_file();
-    append(types_, edl->types_);
-    append(includes_, edl->includes_);
+    for (UserType* type : edl->types_)
+        append_type(type);
+    for (const std::string& inc : edl->includes_)
+        append_include(inc);
 
     expect("import");
     if (peek() == '*')
     {
         next();
-        append(imported_trusted_funcs_, edl->trusted_funcs_);
-        append(imported_untrusted_funcs_, edl->untrusted_funcs_);
+        for (Function* f : edl->trusted_funcs_)
+            append_function(imported_trusted_funcs_, f);
+        for (Function* f : edl->untrusted_funcs_)
+            append_function(imported_untrusted_funcs_, f);
     }
     else
     {
@@ -227,32 +311,27 @@ void Parser::parse_from_import()
             if (!t.is_name())
                 ERROR("expecting function name");
 
-            bool match = false;
-            for (Function* f : edl->trusted_funcs_)
+            std::string function_name = t;
+            Function* imported_f = lookup(edl->trusted_funcs_, function_name);
+            std::vector<Function*>* funcs = &imported_trusted_funcs_;
+
+            if (!imported_f)
             {
-                if (t == f->name_.c_str())
-                {
-                    imported_trusted_funcs_.push_back(f);
-                    match = true;
-                    break;
-                }
+                imported_f = lookup(edl->untrusted_funcs_, function_name);
+                funcs = &imported_untrusted_funcs_;
             }
 
-            for (Function* f : edl->untrusted_funcs_)
+            if (imported_f)
             {
-                if (t == f->name_.c_str())
-                {
-                    imported_untrusted_funcs_.push_back(f);
-                    match = true;
-                    break;
-                }
+                append_function(*funcs, imported_f);
+            }
+            else
+            {
+                ERROR(
+                    "function %s not found in imported edl.",
+                    function_name.c_str());
             }
 
-            if (!match)
-            {
-                std::string n = t;
-                ERROR("function %s not found in imported edl.", n.c_str());
-            }
             if (peek() != ';')
                 expect(",");
         }
@@ -289,7 +368,7 @@ void Parser::parse_enum()
             expect(",");
         type->items_.push_back(EnumVal{name, value});
     }
-    types_.push_back(type);
+    append_type(type);
     expect("}");
     expect(";");
 }
@@ -313,7 +392,7 @@ void Parser::parse_struct_or_union(bool is_struct)
         if (peek() != "}")
             expect(";");
     }
-    types_.push_back(type);
+    append_type(type);
     check_size_count_decls(type->name_, false, type->fields_);
     expect("}");
     expect(";");
@@ -328,12 +407,13 @@ void Parser::parse_trusted()
         if (peek() == "public")
             is_private = (next(), false);
 
-        trusted_funcs_.push_back(parse_function_decl(true));
+        append_function(trusted_funcs_, parse_function_decl(true));
         if (is_private)
         {
             // Report error consistent with current edger8r.
             // TODO: Report location.
-            printf(
+            fprintf(
+                stderr,
                 "error: Function '%s': 'private' specifier is not supported by "
                 "oeedger8r\n",
                 trusted_funcs_.back()->name_.c_str());
@@ -349,7 +429,7 @@ void Parser::parse_untrusted()
     expect("{");
     while (peek() != '}')
     {
-        untrusted_funcs_.push_back(parse_function_decl(false));
+        append_function(untrusted_funcs_, parse_function_decl(false));
     }
     expect("}");
     expect(";");
@@ -654,7 +734,8 @@ Dims* Parser::parse_dims()
 
 void Parser::warn_allow_list(const std::string& fname)
 {
-    printf(
+    fprintf(
+        stderr,
         "Warning: Function '%s': Reentrant ocalls are not supported by "
         "Open Enclave. Allow list ignored.\n",
         fname.c_str());
@@ -674,13 +755,13 @@ void Parser::warn_non_portable(Function* f)
             t = t->t_;
 
         if (t->tag_ == WChar)
-            printf(fmt, f->name_.c_str(), "wchar_t", "");
+            fprintf(stderr, fmt, f->name_.c_str(), "wchar_t", "");
         else if (t->tag_ == LDouble)
-            printf(fmt, f->name_.c_str(), "long double", "");
+            fprintf(stderr, fmt, f->name_.c_str(), "long double", "");
         else if (t->tag_ == Long)
-            printf(fmt, f->name_.c_str(), "long", suggestion);
+            fprintf(stderr, fmt, f->name_.c_str(), "long", suggestion);
         else if (t->tag_ == Unsigned && t->t_->tag_ == Long)
-            printf(fmt, f->name_.c_str(), "unsigned long", suggestion);
+            fprintf(stderr, fmt, f->name_.c_str(), "unsigned long", suggestion);
     }
 }
 
@@ -691,7 +772,8 @@ void Parser::error_size_count(Function* f)
         if (p->attrs_ && !p->attrs_->size_.is_empty() &&
             !p->attrs_->count_.is_empty())
         {
-            printf(
+            fprintf(
+                stderr,
                 "error: Function '%s': simultaneous 'size' and 'count' "
                 "parameters 'size' and 'count' are not supported by "
                 "oeedger8r.",
@@ -764,7 +846,8 @@ void Parser::check_size_count_decls(
             case Int32:
             case Int64:
             {
-                printf(
+                fprintf(
+                    stderr,
                     "Warning: %s '%s': Size or count parameter '%s' should not "
                     "be signed.\n",
                     is_function ? "Function" : "struct",
@@ -801,7 +884,8 @@ void Parser::check_deep_copy_struct_by_value(Function* f)
         {
             if (field->attrs_)
             {
-                printf(
+                fprintf(
+                    stderr,
                     "error: the structure declaration \"%s\" specifies a "
                     "deep copy is expected. Referenced by value in function "
                     "\"%s\" detected.",

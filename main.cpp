@@ -48,6 +48,7 @@ const char* usage =
 int main(int argc, char** argv)
 {
     std::vector<std::string> searchpaths;
+    bool use_prefix = false;
     bool header_only = false;
     bool gen_untrusted = false;
     bool gen_trusted = false;
@@ -65,11 +66,14 @@ int main(int argc, char** argv)
     auto get_dir = [argc, argv](int i) {
         if (i == argc)
         {
-            printf("error: missing directory name after %s\n", argv[i - 1]);
-            printf("%s\n", usage);
+            fprintf(
+                stderr,
+                "error: missing directory name after %s\n",
+                argv[i - 1]);
+            fprintf(stderr, "%s\n", usage);
             exit(1);
         }
-        return fix_path_seperators(argv[i]);
+        return fix_path_separators(argv[i]);
     };
 
     while (i < argc)
@@ -78,7 +82,7 @@ int main(int argc, char** argv)
         if (a == "--search-path")
             searchpaths.push_back(get_dir(i++));
         else if (a == "--use-prefix")
-            continue;
+            use_prefix = true;
         else if (a == "--header-only")
             header_only = true;
         else if (a == "--untrusted")
@@ -97,13 +101,13 @@ int main(int argc, char** argv)
             return 1;
         }
         else
-            files.push_back(fix_path_seperators(a));
+            files.push_back(fix_path_separators(a));
     }
 
     if (files.empty())
     {
-        printf("error: missing edl filename.\n");
-        printf("%s", usage);
+        fprintf(stderr, "error: missing edl filename.\n");
+        fprintf(stderr, "%s", usage);
         return -1;
     }
 
@@ -139,10 +143,11 @@ int main(int argc, char** argv)
         }
         if (gen_untrusted)
         {
+            std::string prefix = use_prefix ? (edl->name_ + "_") : "";
             ArgsHEmitter(edl).emit(untrusted_dir);
-            HEmitter(edl).emit_u_h(untrusted_dir);
+            HEmitter(edl).emit_u_h(untrusted_dir, prefix);
             if (!header_only)
-                CEmitter(edl).emit_u_c(untrusted_dir);
+                CEmitter(edl).emit_u_c(untrusted_dir, prefix);
         }
     }
 
