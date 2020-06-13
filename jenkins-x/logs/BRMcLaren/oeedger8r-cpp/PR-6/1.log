@@ -1,0 +1,33 @@
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-credential-initializer-dzw2m[0m
+{"level":"info","ts":1592046945.417657,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/refs/heads/0.8.0-ns-support: no such file or directory"}
+{"level":"info","ts":1592046945.4181626,"logger":"fallback-logger","caller":"creds-init/main.go:40","msg":"Credentials initialized."}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-working-dir-initializer-4tlq5[0m
+{"level":"info","ts":1592046946.3587396,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/HEAD: no such file or directory"}
+{"level":"info","ts":1592046946.360663,"logger":"fallback-logger","caller":"bash/main.go:64","msg":"Successfully executed command \"sh -c mkdir -p /workspace/source\"; output "}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-place-tools[0m
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-git-source-brmclaren-oeedger8r-cpp-pr-6-se-brpvz-fwd27[0m
+{"level":"info","ts":1592046950.4747517,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/refs/heads/0.8.0-ns-support: no such file or directory"}
+{"level":"info","ts":1592046950.8674157,"logger":"fallback-logger","caller":"git/git.go:103","msg":"Successfully cloned https://github.com/BRMcLaren/oeedger8r-cpp.git @ master in path /workspace/source"}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-git-merge[0m
+Using SHAs from PULL_REFS=master:bba1f83d73387099b95bb0476939879a65428126,6:d491003c95a6a7222cde7f0740b66b2fd13f06d1
+DEBUG: LC_ALL=C JX_LOG_LEVEL=error git fetch origin --unshallow d491003c95a6a7222cde7f0740b66b2fd13f06d1: bba1f83d73387099b95bb0476939879a65428126:
+DEBUG: ran git fetch --unshallow origin d491003c95a6a7222cde7f0740b66b2fd13f06d1: bba1f83d73387099b95bb0476939879a65428126: in 
+DEBUG: LC_ALL=C JX_LOG_LEVEL=error git branch
+DEBUG: JX_LOG_LEVEL=error LC_ALL=C git checkout master
+DEBUG: ran git checkout master in 
+DEBUG: LC_ALL=C JX_LOG_LEVEL=error git reset --hard bba1f83d73387099b95bb0476939879a65428126
+DEBUG: ran git reset --hard bba1f83d73387099b95bb0476939879a65428126 in 
+DEBUG: JX_LOG_LEVEL=error LC_ALL=C git clean -fd .
+DEBUG: ran clean --force -d . in 
+DEBUG: LC_ALL=C JX_LOG_LEVEL=error git merge d491003c95a6a7222cde7f0740b66b2fd13f06d1
+DEBUG: ran git merge d491003c95a6a7222cde7f0740b66b2fd13f06d1 in 
+DEBUG: LC_ALL=C JX_LOG_LEVEL=error git log --format=%H%x1f%an%x1f%ae%x1f%cn%x1f%ce%x1f%s%n%b%x1e bba1f83d73387099b95bb0476939879a65428126..HEAD
+Merged SHA d491003c95a6a7222cde7f0740b66b2fd13f06d1 with commit message 'remove release config' into base branch master
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-pr-6-se-brpvz-1[0m stage [32mrelease[0m and container [32mstep-helm-build[0m
+hello
