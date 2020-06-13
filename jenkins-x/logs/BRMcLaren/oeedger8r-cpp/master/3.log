@@ -1,0 +1,23 @@
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-credential-initializer-c8w4w[0m
+{"level":"info","ts":1592044890.8309271,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/refs/heads/0.8.0-ns-support: no such file or directory"}
+{"level":"info","ts":1592044890.8314111,"logger":"fallback-logger","caller":"creds-init/main.go:40","msg":"Credentials initialized."}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-working-dir-initializer-dh8kb[0m
+{"level":"info","ts":1592044892.54653,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/HEAD: no such file or directory"}
+{"level":"info","ts":1592044892.5486474,"logger":"fallback-logger","caller":"bash/main.go:64","msg":"Successfully executed command \"sh -c mkdir -p /workspace/source\"; output "}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-place-tools[0m
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-git-source-brmclaren-oeedger8r-cpp-master-5ww2q-grjtz[0m
+{"level":"info","ts":1592044899.7146404,"logger":"fallback-logger","caller":"logging/config.go:69","msg":"Fetch GitHub commit ID from kodata failed: open /var/run/ko/refs/heads/0.8.0-ns-support: no such file or directory"}
+{"level":"info","ts":1592044900.0524669,"logger":"fallback-logger","caller":"git/git.go:103","msg":"Successfully cloned https://github.com/BRMcLaren/oeedger8r-cpp.git @ v0.0.3 in path /workspace/source"}
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-git-merge[0m
+Using SHAs from PULL_REFS=master:f4292e16c5abcf942573cff3371b9e8f7e335d01
+WARNING: no SHAs to merge, falling back to initial cloned commit
+
+Showing logs for build [32mbrmclaren-oeedger8r-cpp-master-5ww2q-3[0m stage [32mrelease[0m and container [32mstep-verify-preintall[0m
+/bin/sh: line 0: cd: /workspace/source/env: No such file or directory
+[31m
+Pipeline failed on stage 'release' : container 'step-verify-preintall'. The execution of the pipeline has stopped.[0m
