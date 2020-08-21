@@ -6,3 +6,5 @@ reviewers:
 - anakrish
 - BRMcLaren
 - mingweishih
+git commit --amend --signoff --all
+git push --force-with-lease origin
